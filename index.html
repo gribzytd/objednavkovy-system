@@ -3,60 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Objednávkový systém</title>
-    <link rel="stylesheet" href="style.css">
+    <title>MimaRehab - Objednávkový systém</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --blue: #2158E4; --white: #ffffff; --background: #f7f8fc; --text-dark: #1a1a1a; --text-light: #6b7280; --border: #e5e7eb; --success: #22c55e; --danger: #ef4444; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background); color: var(--text-dark); margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .app-container { max-width: 1200px; margin: 40px auto; padding: 20px; }
+        .calendar-wrapper { background: var(--white); padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05); animation: fadeIn 0.5s ease-out; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .calendar-header h2 { font-size: 20px; font-weight: 600; margin: 0; }
+        .nav-btn { background: #f3f4f6; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; transition: background-color 0.2s; }
+        .nav-btn:hover { background: #e5e7eb; }
+        .days-of-week, .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        .days-of-week div { text-align: center; font-size: 14px; font-weight: 500; color: var(--text-light); }
+        .calendar-day { display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 50%; cursor: pointer; font-weight: 500; transition: all 0.2s; position: relative; }
+        .calendar-day:not(.empty):not(.full):hover { background-color: #e9efff; color: var(--blue); }
+        .calendar-day.today { border: 2px solid var(--blue); }
+        .calendar-day.empty { cursor: default; }
+        .calendar-day .availability-dot { width: 6px; height: 6px; border-radius: 50%; position: absolute; bottom: 8px; }
+        .dot-available { background-color: var(--success); }
+        .dot-limited { background-color: #f59e0b; }
+        .calendar-day.full { color: var(--text-light); cursor: not-allowed; background-color: #f3f4f6; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .modal-overlay.visible { opacity: 1; visibility: visible; }
+        .modal-content { background: var(--white); padding: 32px; border-radius: 16px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-overlay.visible .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-header h3 { margin: 0; font-size: 20px; font-weight: 600; }
+        .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); }
+        .form-step { display: none; }
+        .form-step.active { display: block; animation: fadeIn 0.3s; }
+        .service-list .service-item { display: flex; justify-content: space-between; padding: 16px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; }
+        .service-list .service-item:hover { border-color: var(--blue); background-color: #f9faff; }
+        .service-info h4 { margin: 0 0 4px 0; font-weight: 600; }
+        .service-info p { margin: 0; font-size: 14px; color: var(--text-light); }
+        .service-price { font-weight: 600; color: var(--blue); }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        label { display: block; font-weight: 500; margin-bottom: 6px; font-size: 14px; }
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 16px; }
+        .time-slots-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .time-slot-btn { padding: 10px 15px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--white); font-weight: 500; }
+        .time-slot-btn.selected { background-color: var(--blue); color: var(--white); border-color: var(--blue); }
+        .primary-btn { width: 100%; padding: 14px; background-color: var(--blue); color: var(--white); border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+        .primary-btn:hover { background-color: #1a46b8; }
+        .message { text-align: center; font-weight: 500; padding: 12px; border-radius: 8px; margin-top: 16px; }
+        .message.success { background-color: #d1fae5; color: #065f46; }
+        .message.error { background-color: #fee2e2; color: #991b1b; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
 </head>
 <body>
-
-    <div class="container">
-        <h1>Objednajte sa na cvičenie</h1>
-
-        <div class="kalendar-wrapper">
-            <div class="kalendar-header">
-                <button id="predchadzajuci-mesiac" class="nav-btn">&lt;</button>
-                <h2 id="nazov-mesiaca"></h2>
-                <button id="nasledujuci-mesiac" class="nav-btn">&gt;</button>
-            </div>
-            <div class="dni-v-tyzdni">
-                <div>Po</div>
-                <div>Ut</div>
-                <div>St</div>
-                <div>Št</div>
-                <div>Pi</div>
-                <div>So</div>
-                <div>Ne</div>
-            </div>
-            <div id="kalendar-grid" class="kalendar-grid">
+    <div id="app" class="app-container"></div>
+    <template id="booking-modal-template">
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Vyberte si termín a procedúru</h3>
+                    <button class="close-btn">&times;</button>
                 </div>
+                <div id="modal-body">
+                    <div id="step1" class="form-step active">
+                        <p>Dostupné časy pre dátum: <strong id="selected-date-display"></strong></p>
+                        <div id="time-slots" class="time-slots-grid"></div>
+                        <p style="margin-top: 20px;">Vyberte si procedúru:</p>
+                        <div class="service-list" id="service-list"></div>
+                    </div>
+                    <div id="step2" class="form-step">
+                        <form id="booking-form">
+                            <div class="form-grid">
+                                <div class="form-group"><label for="child-name">Meno a priezvisko DIEŤAŤA</label><input type="text" id="child-name" required></div>
+                                <div class="form-group"><label for="parent-name">Meno a priezvisko RODIČA</label><input type="text" id="parent-name" required></div>
+                                <div class="form-group"><label for="phone">Telefónne číslo</label><input type="tel" id="phone" required></div>
+                                <div class="form-group"><label for="email">E-mail</label><input type="email" id="email" required></div>
+                                <div class="form-group full-width"><label for="diagnosis">Diagnóza/Dôvod návštevy</label><textarea id="diagnosis" rows="3"></textarea></div>
+                                <div class="form-group full-width"><label for="medical-file">Správa/Lekársky nález (nepovinné)</label><input type="file" id="medical-file"></div>
+                                <div class="form-group full-width"><label for="source">Ako ste sa o nás dozvedeli?</label><input type="text" id="source"></div>
+                            </div>
+                            <p><strong>Vybrané:</strong> <span id="summary-service"></span>, <span id="summary-date"></span> o <span id="summary-time"></span>. Cena: <span id="summary-price"></span>€</p>
+                            <button type="submit" class="primary-btn">Potvrdiť objednávku</button>
+                            <div id="modal-message" class="message" style="display: none;"></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
+    </template>
+    
+    <script>
+    const API_URL = 'https://objednavkovy-system-1.onrender.com';
+    const CENNIK = [
+        { nazov: "Konzultácia MINI", popis: "Základné zhodnotenie stavu, návrh terapií.", cena: 35.00 }, { nazov: "Konzultácia MAXI", popis: "Komplexné zhodnotenie, detailný plán.", cena: 40.00 },
+        { nazov: "Balík THERAPY BABY", popis: "Pre dojčatá, zameraný na psychomotorický vývoj.", cena: 30.00 }, { nazov: "Balík THERAPY CLASSIC", popis: "LTV, PIR, inštruktáž cvikov.", cena: 30.00 },
+        { nazov: "Balík THERAPY MINI", popis: "LTV, PIR, klasická masáž.", cena: 30.00 }, { nazov: "Balík THERAPY MAXI", popis: "Rozšírená verzia MINI balíčka.", cena: 35.00 },
+        { nazov: "LTV FUN KIDS", popis: "Hravá LTV pre deti (ploché nohy, skolióza).", cena: 30.00 }, { nazov: "Tejpovanie", popis: "Aplikácia pružných pások, vrátane materiálu.", cena: 10.00 },
+        { nazov: "Klasická masáž MINI", popis: "Kratšia masáž na konkrétnu partiu.", cena: 25.00 }, { nazov: "Klasická masáž MAXI", popis: "Dlhšia, komplexná masáž chrbta a šije.", cena: 30.00 },
+        { nazov: "SPS metóda", popis: "Individuálne cvičenie SM systém.", cena: 30.00 }, { nazov: "SPS metóda + klasická masáž", popis: "Spojenie cvičenia SPS s masážou.", cena: 40.00 }
+    ];
+    const app = document.getElementById('app');
+    let currentDate = new Date();
+    let allBookings = [];
 
-        <div id="objednavkovy-formular" class="formular-wrapper">
-            <h2>Vyberte si termín</h2>
-            <form id="formular">
-                <label for="meno">Vaše meno:</label>
-                <input type="text" id="meno" name="meno" required>
-
-                <label for="datum">Dátum:</label>
-                <input type="date" id="datum" name="datum" required>
-
-                <label for="cas">Čas:</label>
-                <select id="cas" name="cas" required>
-                    <option value="08:00">08:00</option>
-                    <option value="09:00">09:00</option>
-                    <option value="10:00">10:00</option>
-                    <option value="16:00">16:00</option>
-                    <option value="17:00">17:00</option>
-                </select>
-
-                <button type="submit">Odoslať objednávku</button>
-            </form>
-            <div id="sprava" class="sprava"></div>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
+    async function init() { await fetchDataAndRenderCalendar(); }
+    async function fetchDataAndRenderCalendar() {
+        try {
+            const response = await fetch(`${API_URL}/api/terminy`);
+            if (!response.ok) throw new Error('Chyba servera pri načítavaní termínov.');
+            allBookings = await response.json();
+            renderCalendarView();
+        } catch (error) {
+            console.error("Chyba pri načítavaní dát:", error);
+            app.innerHTML = "<p>Nepodarilo sa načítať dáta zo servera. Skúste prosím obnoviť stránku.</p>";
+        }
+    }
+    function renderCalendarView() {
+        app.innerHTML = `
+            <div class="calendar-wrapper">
+                <div class="calendar-header"><button id="prev-month" class="nav-btn">&lt;</button><h2 id="month-name"></h2><button id="next-month" class="nav-btn">&gt;</button></div>
+                <div class="days-of-week"><div>Po</div><div>Ut</div><div>St</div><div>Št</div><div>Pi</div><div>So</div><div>Ne</div></div>
+                <div id="calendar-grid" class="calendar-grid"></div>
+            </div>`;
+        document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendarGrid(); });
+        document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendarGrid(); });
+        renderCalendarGrid();
+    }
+    function renderCalendarGrid() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const monthNames = ["Január", "Február", "Marec", "Apríl", "Máj", "Jún", "Júl", "August", "September", "Október", "November", "December"];
+        document.getElementById('month-name').textContent = `${monthNames[month]} ${year}`;
+        const grid = document.getElementById('calendar-grid');
+        grid.innerHTML = '';
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const dayOffset = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1;
+        for (let i = 0; i < dayOffset; i++) { grid.innerHTML += `<div class="calendar-day empty"></div>`; }
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const bookingsOnDay = allBookings.filter(b => b.datum === dateStr);
+            const totalSlots = 5;
+            const isFull = bookingsOnDay.length >= totalSlots;
+            const dayEl = document.createElement('div');
+            dayEl.className = `calendar-day ${isFull ? 'full' : ''}`;
+            if (new Date(year, month, day).toDateString() === new Date().toDateString()) { dayEl.classList.add('today'); }
+            dayEl.innerHTML = `<span>${day}</span>`;
+            if (!isFull) {
+                const dot = document.createElement('div');
+                dot.className = 'availability-dot';
+                if (bookingsOnDay.length === 0) dot.classList.add('dot-available');
+                else if (bookingsOnDay.length > 0) dot.classList.add('dot-limited');
+                dayEl.appendChild(dot);
+                dayEl.addEventListener('click', () => openBookingModal(dateStr, bookingsOnDay));
+            }
+            grid.appendChild(dayEl);
+        }
+    }
+    function openBookingModal(dateStr, bookingsOnDay) {
+        if (document.querySelector('.modal-overlay')) return;
+        const template = document.getElementById('booking-modal-template');
+        const modalNode = template.content.cloneNode(true);
+        document.body.appendChild(modalNode);
+        const modalOverlay = document.querySelector('.modal-overlay');
+        document.getElementById('selected-date-display').textContent = new Date(dateStr + 'T00:00:00').toLocaleDateString('sk-SK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const serviceList = document.getElementById('service-list');
+        serviceList.innerHTML = CENNIK.map(s => `<div class="service-item" data-nazov="${s.nazov}" data-cena="${s.cena}"><div class="service-info"><h4>${s.nazov}</h4><p>${s.popis}</p></div><span class="service-price">${s.cena.toFixed(2)} €</span></div>`).join('');
+        let selectedTime = null, selectedService = null;
+        const availableTimes = ["08:00", "09:00", "10:00", "16:00", "17:00"];
+        const bookedTimes = bookingsOnDay.map(b => b.cas);
+        const freeTimes = availableTimes.filter(t => !bookedTimes.includes(t));
+        document.getElementById('time-slots').innerHTML = freeTimes.map(t => `<button class="time-slot-btn">${t}</button>`).join('');
+        document.querySelectorAll('.time-slot-btn').forEach(btn => btn.onclick = () => { document.querySelectorAll('.time-slot-btn').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedTime = btn.textContent; });
+        document.querySelectorAll('.service-item').forEach(item => item.onclick = () => {
+            if (!selectedTime) { alert('Prosím, najprv si vyberte čas.'); return; }
+            selectedService = { nazov: item.dataset.nazov, cena: item.dataset.cena };
+            document.getElementById('summary-service').textContent = selectedService.nazov;
+            document.getElementById('summary-date').textContent = dateStr;
+            document.getElementById('summary-time').textContent = selectedTime;
+            document.getElementById('summary-price').textContent = selectedService.cena;
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+            document.getElementById('modal-title').textContent = 'Vyplňte vaše údaje';
+        });
+        document.getElementById('booking-form').onsubmit = (e) => { e.preventDefault(); submitBooking({ dateStr, selectedTime, nazov: selectedService.nazov, cena: selectedService.cena }); };
+        setTimeout(() => modalOverlay.classList.add('visible'), 10);
+        modalOverlay.querySelector('.close-btn').addEventListener('click', closeBookingModal);
+        modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeBookingModal(); });
+    }
+    function closeBookingModal() {
+        const modalOverlay = document.querySelector('.modal-overlay');
+        if (modalOverlay) { modalOverlay.classList.remove('visible'); setTimeout(() => modalOverlay.remove(), 300); }
+    }
+    async function submitBooking({ dateStr, selectedTime, nazov, cena }) {
+        const formButton = document.getElementById('booking-form').querySelector('button');
+        const formData = new FormData();
+        formData.append('datum', dateStr); formData.append('cas', selectedTime); formData.append('procedura_nazov', nazov);
+        formData.append('procedura_cena', cena); formData.append('meno_dietata', document.getElementById('child-name').value);
+        formData.append('meno_rodica', document.getElementById('parent-name').value); formData.append('telefon', document.getElementById('phone').value);
+        formData.append('email', document.getElementById('email').value); formData.append('diagnoza', document.getElementById('diagnosis').value);
+        formData.append('zdroj_info', document.getElementById('source').value);
+        const fileInput = document.getElementById('medical-file');
+        if (fileInput.files.length > 0) { formData.append('lekarsky_nalez', fileInput.files[0]); }
+        try {
+            formButton.disabled = true; formButton.textContent = 'Odosielam...';
+            const response = await fetch(`${API_URL}/api/objednat`, { method: 'POST', body: formData });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            document.getElementById('booking-form').style.display = 'none';
+            const messageEl = document.getElementById('modal-message');
+            messageEl.textContent = "Ďakujeme! Vaša objednávka bola úspešne prijatá.";
+            messageEl.className = 'message success'; messageEl.style.display = 'block';
+            fetchDataAndRenderCalendar();
+            setTimeout(closeBookingModal, 4000);
+        } catch (error) {
+            alert(`Chyba: ${error.message}`);
+            formButton.disabled = false; formButton.textContent = 'Potvrdiť objednávku';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', init);
+    </script>
 </body>
 </html>

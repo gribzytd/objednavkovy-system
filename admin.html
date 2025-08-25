@@ -21,23 +21,18 @@
 <body>
     <div class="container">
         <h1>Admin Panel - Všetky objednávky</h1>
-        <div class="table-wrapper" id="admin-content">
-            <p>Načítavam objednávky...</p>
-        </div>
+        <div class="table-wrapper" id="admin-content"><p>Načítavam objednávky...</p></div>
     </div>
     <script>
         const API_URL = 'https://objednavkovy-system-1.onrender.com';
-
         async function renderAdminPanel() {
             const contentDiv = document.getElementById('admin-content');
             try {
                 const response = await fetch(`${API_URL}/api/admin/vsetky-objednavky`);
                 const objednavky = await response.json();
-                
                 let tableHTML = `<table class="admin-table"><thead><tr>
                     <th>ID</th><th>Dátum</th><th>Čas</th><th>Procedúra</th><th>Cena</th><th>Dieťa</th><th>Rodič</th><th>Telefón</th><th>Email</th><th>Diagnóza</th><th>Zdroj</th><th>Platba</th><th>Akcia</th>
                 </tr></thead><tbody>`;
-                
                 for (const o of objednavky) {
                     tableHTML += `<tr>
                         <td>${o.id}</td><td>${o.datum}</td><td>${o.cas}</td><td>${o.procedura_nazov}</td><td>${o.procedura_cena} €</td>
@@ -48,7 +43,6 @@
                 }
                 tableHTML += `</tbody></table>`;
                 contentDiv.innerHTML = tableHTML;
-
                 document.querySelectorAll('.delete-btn').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
                         const id = e.target.dataset.id;
@@ -58,9 +52,7 @@
                         }
                     });
                 });
-            } catch (error) {
-                contentDiv.innerHTML = `<p>Chyba pri načítavaní objednávok.</p>`;
-            }
+            } catch (error) { contentDiv.innerHTML = `<p>Chyba pri načítavaní objednávok.</p>`; }
         }
         document.addEventListener('DOMContentLoaded', renderAdminPanel);
     </script>
