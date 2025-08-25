@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel - Správa objednávok</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+        .delete-btn:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+
+    <h1>Admin Panel - Všetky objednávky</h1>
+    <table id="objednavky-tabulka">
+        <thead>
+            <tr>
+                <th>Dátum</th>
+                <th>Čas</th>
+                <th>Meno klienta</th>
+                <th>Akcia</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        const tabulkaBody = document.querySelector('#objednavky-tabulka tbody');
+
+        /**
+         * Načíta všetky objednávky a zobrazí ich v tabuľke.
+         */
+        async function nacitajObjednavky() {
+            try {
+                const response = await fetch(`${API_URL}/api/terminy`);
+                const objednavky = await response.json();
+                
+                // Vyčistíme staré dáta
+                tabulkaBody.innerHTML = '';
+                
+                // Zoradíme objednávky podľa dátumu a času
+                objednavky.sort((a, b) => (a.datum + a.cas).localeCompare(b.datum + b.cas));
+
+                objednavky.forEach(objednavka => {
+                    const riadok = document.createElement('tr');
+                    
+                    riadok.innerHTML = `
+                        <td>${objednavka.datum}</td>
+                        <td>${objednavka.cas}</td>
+                        <td>${objednavka.meno}</td>
+                        <td>
+                            <button class="delete-btn" data-datum="${objednavka.datum}" data-cas="${objednavka.cas}">Zmazať</button>
+                        </td>
+                    `;
+                    tabulkaBody.appendChild(riadok);
+                });
+
+            } catch (error) {
+                console.error('Chyba pri načítavaní objednávok:', error);
+                tabulkaBody.innerHTML = '<tr><td colspan="4">Nepodarilo sa načítať dáta.</td></tr>';
+            }
+        }
+        
+        /**
+         * Spracuje kliknutie na tlačidlo "Zmazať".
+         */
+        tabulkaBody.addEventListener('click', async function(event) {
+            if (event.target.classList.contains('delete-btn')) {
+                const button = event.target;
+                const datum = button.dataset.datum;
+                const cas = button.dataset.cas;
+
+                if (confirm(`Naozaj chcete zmazať objednávku na ${datum} o ${cas}?`)) {
+                    try {
+                        const response = await fetch(`${API_URL}/api/admin/zmazat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ datum, cas })
+                        });
+                        const vysledok = await response.json();
+                        
+                        if (vysledok.status === 'success') {
+                            alert('Objednávka bola úspešne zmazaná.');
+                            nacitajObjednavky(); // Obnovíme tabuľku
+                        } else {
+                            alert(`Chyba: ${vysledok.message}`);
+                        }
+                    } catch (error) {
+                        alert('Nastala chyba pri komunikácii so serverom.');
+                    }
+                }
+            }
+        });
+
+        // Načítame objednávky hneď po otvorení stránky
+        document.addEventListener('DOMContentLoaded', nacitajObjednavky);
+    </script>
+</body>
+</html>
