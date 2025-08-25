@@ -1,4 +1,4 @@
-# app.py (finálna verzia 2.1 - OPRAVENÁ)
+# app.py (finálna verzia 2.2 - čistenie databázy)
 
 import os
 import psycopg2
@@ -20,22 +20,52 @@ def get_db_connection():
     conn = psycopg2.connect(db_url)
     return conn
 
+# === NOVÁ FUNKCIA NA FINÁLNE VYČISTENIE ===
+def vycisti_db_final():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Krok 1: Premenujeme pôvodný stĺpec 'meno_klienta' na 'stary_udaj_meno', ak existuje
+        try:
+            cursor.execute('ALTER TABLE objednavky RENAME COLUMN meno_klienta TO stary_udaj_meno;')
+            print("Stĺpec 'meno_klienta' bol premenovaný na 'stary_udaj_meno'.")
+            conn.commit()
+        except psycopg2.Error:
+            conn.rollback() # Vrátime transakciu, ak stĺpec neexistuje (už bol premenovaný)
+            print("Stĺpec 'meno_klienta' už bol pravdepodobne premenovaný.")
+
+        # Krok 2: Odstránime z tohto starého stĺpca pravidlo NOT NULL, aby nespôsoboval chyby
+        try:
+            cursor.execute('ALTER TABLE objednavky ALTER COLUMN stary_udaj_meno DROP NOT NULL;')
+            print("Pravidlo NOT NULL bolo odstránené zo stĺpca 'stary_udaj_meno'.")
+            conn.commit()
+        except psycopg2.Error:
+            conn.rollback()
+            print("Pravidlo NOT NULL už bolo pravdepodobne odstránené.")
+            
+        # Krok 3 (nepovinný, ale čistý): Zmažeme celý starý stĺpec, lebo ho už nepotrebujeme
+        # Týmto sa zbavíme problému navždy.
+        # cursor.execute('ALTER TABLE objednavky DROP COLUMN IF EXISTS stary_udaj_meno;')
+        # print("Starý stĺpec 'stary_udaj_meno' bol zmazaný.")
+        # conn.commit()
+
+        print("Databáza bola úspešne vyčistená.")
+    finally:
+        cursor.close()
+        conn.close()
+
+# Všetky ostatné funkcie zostávajú rovnaké
 def odosli_objednavku_emailom(data, subor):
     try:
-        # === TOTO JE OPRAVENÁ ČASŤ ===
-        # Používame mená (kľúče), ktoré sme zadali na Renderi
         EMAIL_HOST = os.environ.get('EMAIL_HOST')
         EMAIL_PORT = int(os.environ.get('EMAIL_PORT'))
         EMAIL_USER = os.environ.get('EMAIL_USER')
-        EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD') # Sem nepatrí heslo! Načíta ho z Renderu.
-        
+        EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
         prijemca = EMAIL_USER
-
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = prijemca
         msg['Subject'] = f"Nová objednávka: {data['procedura_nazov']} - {data['meno_dietata']}"
-
         html_telo = f"""
         <html><body>
             <h2>Nová objednávka na MimaRehab.sk</h2>
@@ -52,14 +82,12 @@ def odosli_objednavku_emailom(data, subor):
         </body></html>
         """
         msg.attach(MIMEText(html_telo, 'html'))
-
         if subor:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(subor.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f"attachment; filename= {subor.filename}")
             msg.attach(part)
-
         server = smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT)
         server.login(EMAIL_USER, EMAIL_PASSWORD)
         server.send_message(msg)
@@ -74,15 +102,12 @@ def odosli_objednavku_emailom(data, subor):
 def vytvor_objednavku():
     data = request.form
     subor = request.files.get('lekarsky_nalez')
-
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     try:
         cursor.execute("SELECT id FROM objednavky WHERE datum = %s AND cas = %s", (data['datum'], data['cas']))
         if cursor.fetchone():
             return jsonify({'status': 'error', 'message': 'Tento termín je už obsadený.'}), 409
-
         cursor.execute(
             """
             INSERT INTO objednavky (datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info)
@@ -101,8 +126,7 @@ def vytvor_objednavku():
         cursor.close()
         conn.close()
 
-# --- Ostatné funkcie zostávajú rovnaké ---
-
+# Ostatné funkcie (terminy, admin) sú rovnaké...
 @app.route('/api/terminy', methods=['GET'])
 def ziskaj_terminy():
     conn = get_db_connection()
