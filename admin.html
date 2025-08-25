@@ -3,105 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <title>Admin Panel - Správa objednávok</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; max-width: 900px; margin: 40px auto; }
-        h1 { text-align: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        tr:hover { background-color: #f1f1f1; }
-        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
-        .delete-btn:hover { background-color: #c82333; }
+        :root { --blue: #2158E4; --white: #ffffff; --background: #f7f8fc; --text-dark: #1a1a1a; --border: #e5e7eb; --danger: #ef4444; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background); color: var(--text-dark); margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 20px auto; background: var(--white); padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        h1 { color: var(--blue); text-align: center; }
+        .table-wrapper { overflow-x: auto; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .admin-table th, .admin-table td { padding: 12px 15px; border: 1px solid var(--border); text-align: left; font-size: 14px; white-space: nowrap; }
+        .admin-table th { background-color: #f9fafb; font-weight: 600; }
+        .delete-btn { background-color: var(--danger); color: var(--white); border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
     </style>
 </head>
 <body>
-
-    <h1>Admin Panel - Všetky objednávky</h1>
-    <table id="objednavky-tabulka">
-        <thead>
-            <tr>
-                <th>Dátum</th>
-                <th>Čas</th>
-                <th>Meno klienta</th>
-                <th>Akcia</th>
-            </tr>
-        </thead>
-        <tbody>
-            </tbody>
-    </table>
-
+    <div class="container">
+        <h1>Admin Panel - Všetky objednávky</h1>
+        <div class="table-wrapper" id="admin-content">
+            <p>Načítavam objednávky...</p>
+        </div>
+    </div>
     <script>
-        const API_URL = 'http://127.0.0.1:5000';
-        const tabulkaBody = document.querySelector('#objednavky-tabulka tbody');
+        const API_URL = 'https://objednavkovy-system-1.onrender.com';
 
-        /**
-         * Načíta všetky objednávky a zobrazí ich v tabuľke.
-         */
-        async function nacitajObjednavky() {
+        async function renderAdminPanel() {
+            const contentDiv = document.getElementById('admin-content');
             try {
-                const response = await fetch(`${API_URL}/api/terminy`);
+                const response = await fetch(`${API_URL}/api/admin/vsetky-objednavky`);
                 const objednavky = await response.json();
                 
-                // Vyčistíme staré dáta
-                tabulkaBody.innerHTML = '';
+                let tableHTML = `<table class="admin-table"><thead><tr>
+                    <th>ID</th><th>Dátum</th><th>Čas</th><th>Procedúra</th><th>Cena</th><th>Dieťa</th><th>Rodič</th><th>Telefón</th><th>Email</th><th>Diagnóza</th><th>Zdroj</th><th>Platba</th><th>Akcia</th>
+                </tr></thead><tbody>`;
                 
-                // Zoradíme objednávky podľa dátumu a času
-                objednavky.sort((a, b) => (a.datum + a.cas).localeCompare(b.datum + b.cas));
+                for (const o of objednavky) {
+                    tableHTML += `<tr>
+                        <td>${o.id}</td><td>${o.datum}</td><td>${o.cas}</td><td>${o.procedura_nazov}</td><td>${o.procedura_cena} €</td>
+                        <td>${o.meno_dietata}</td><td>${o.meno_rodica}</td><td>${o.telefon}</td><td>${o.email}</td>
+                        <td>${o.diagnoza || '-'}</td><td>${o.zdroj_info || '-'}</td><td>${o.stav_platby}</td>
+                        <td><button class="delete-btn" data-id="${o.id}">Zmazať</button></td>
+                    </tr>`;
+                }
+                tableHTML += `</tbody></table>`;
+                contentDiv.innerHTML = tableHTML;
 
-                objednavky.forEach(objednavka => {
-                    const riadok = document.createElement('tr');
-                    
-                    riadok.innerHTML = `
-                        <td>${objednavka.datum}</td>
-                        <td>${objednavka.cas}</td>
-                        <td>${objednavka.meno}</td>
-                        <td>
-                            <button class="delete-btn" data-datum="${objednavka.datum}" data-cas="${objednavka.cas}">Zmazať</button>
-                        </td>
-                    `;
-                    tabulkaBody.appendChild(riadok);
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const id = e.target.dataset.id;
+                        if (confirm(`Naozaj zmazať objednávku č. ${id}?`)) {
+                            await fetch(`${API_URL}/api/admin/zmazat/${id}`, { method: 'POST' });
+                            renderAdminPanel();
+                        }
+                    });
                 });
-
             } catch (error) {
-                console.error('Chyba pri načítavaní objednávok:', error);
-                tabulkaBody.innerHTML = '<tr><td colspan="4">Nepodarilo sa načítať dáta.</td></tr>';
+                contentDiv.innerHTML = `<p>Chyba pri načítavaní objednávok.</p>`;
             }
         }
-        
-        /**
-         * Spracuje kliknutie na tlačidlo "Zmazať".
-         */
-        tabulkaBody.addEventListener('click', async function(event) {
-            if (event.target.classList.contains('delete-btn')) {
-                const button = event.target;
-                const datum = button.dataset.datum;
-                const cas = button.dataset.cas;
-
-                if (confirm(`Naozaj chcete zmazať objednávku na ${datum} o ${cas}?`)) {
-                    try {
-                        const response = await fetch(`${API_URL}/api/admin/zmazat`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ datum, cas })
-                        });
-                        const vysledok = await response.json();
-                        
-                        if (vysledok.status === 'success') {
-                            alert('Objednávka bola úspešne zmazaná.');
-                            nacitajObjednavky(); // Obnovíme tabuľku
-                        } else {
-                            alert(`Chyba: ${vysledok.message}`);
-                        }
-                    } catch (error) {
-                        alert('Nastala chyba pri komunikácii so serverom.');
-                    }
-                }
-            }
-        });
-
-        // Načítame objednávky hneď po otvorení stránky
-        document.addEventListener('DOMContentLoaded', nacitajObjednavky);
+        document.addEventListener('DOMContentLoaded', renderAdminPanel);
     </script>
 </body>
 </html>

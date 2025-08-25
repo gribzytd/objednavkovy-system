@@ -1,4 +1,4 @@
-# app.py (verzia 2.0 s rozšíreným formulárom)
+# app.py (finálna verzia 2.0)
 
 import os
 import psycopg2
@@ -15,31 +15,34 @@ def get_db_connection():
     conn = psycopg2.connect(db_url)
     return conn
 
-# !! DÔLEŽITÉ !! - Funkcia na úpravu databázy
-# Túto funkciu budeme musieť jednorazovo spustiť, aby sme pridali nové stĺpce
+# Funkcia na jednorazovú úpravu databázy pre pridanie nových stĺpcov
 def uprav_db_pre_v2():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Pridáme nové stĺpce do tabuľky 'objednavky'. Ak už existujú, príkaz neurobí nič.
-    # Používame IF NOT EXISTS pre bezpečnosť
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_nazov TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_cena NUMERIC;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_dietata TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS diagnoza TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_rodica TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS telefon TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS email TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS zdroj_info TEXT;')
-    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS stav_platby TEXT DEFAULT \'čaká na platbu\';')
-    
-    # Premenujeme starý stĺpec pre lepšiu prehľadnosť
-    # cursor.execute('ALTER TABLE objednavky RENAME COLUMN meno_klienta TO stary_udaj_meno;')
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print("Databáza bola úspešne upravená pre v2.0.")
-
+    try:
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_nazov TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_cena NUMERIC;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_dietata TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS diagnoza TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_rodica TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS telefon TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS email TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS zdroj_info TEXT;')
+        cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS stav_platby TEXT DEFAULT \'čaká na platbu\';')
+        
+        # Tento príkaz sa pokúsi premenovať stĺpec, iba ak existuje. Ak neexistuje, ignoruje chybu.
+        # Je to pre prípad, že by tam ostali staré dáta.
+        try:
+            cursor.execute('ALTER TABLE objednavky RENAME COLUMN meno_klienta TO stary_udaj_meno;')
+        except psycopg2.Error:
+            conn.rollback() # Vrátim transakciu, ak stĺpec neexistuje
+        else:
+            conn.commit() # Potvrdím, len ak premenovanie prebehlo
+            
+        print("Databáza bola úspešne upravená pre v2.0.")
+    finally:
+        cursor.close()
+        conn.close()
 
 # --- API Endpoints ---
 
@@ -47,7 +50,6 @@ def uprav_db_pre_v2():
 def ziskaj_terminy():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Berieme len dátum a čas, aby sme vedeli určiť obsadenosť
     cursor.execute("SELECT datum, cas FROM objednavky")
     vsetky_objednavky = cursor.fetchall()
     cursor.close()
@@ -60,7 +62,6 @@ def ziskaj_terminy():
 def vytvor_objednavku():
     data = request.get_json()
     
-    # Kontrola, či máme všetky potrebné dáta z nového formulára
     required_fields = ['datum', 'cas', 'procedura_nazov', 'procedura_cena', 'meno_dietata', 'meno_rodica', 'telefon', 'email']
     if not all(field in data for field in required_fields):
         return jsonify({'status': 'error', 'message': 'Chýbajú povinné polia'}), 400
@@ -68,45 +69,40 @@ def vytvor_objednavku():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Kontrola duplicitnej objednávky
-    cursor.execute("SELECT id FROM objednavky WHERE datum = %s AND cas = %s", (data['datum'], data['cas']))
-    if cursor.fetchone():
+    try:
+        cursor.execute("SELECT id FROM objednavky WHERE datum = %s AND cas = %s", (data['datum'], data['cas']))
+        if cursor.fetchone():
+            return jsonify({'status': 'error', 'message': 'Tento termín je už obsadený.'}), 409
+
+        cursor.execute(
+            """
+            INSERT INTO objednavky (datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                data['datum'], data['cas'], data['procedura_nazov'], data['procedura_cena'],
+                data['meno_dietata'], data.get('diagnoza', ''), data['meno_rodica'],
+                data['telefon'], data['email'], data.get('zdroj_info', '')
+            )
+        )
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Objednávka úspešne vytvorená'})
+    finally:
         cursor.close()
         conn.close()
-        return jsonify({'status': 'error', 'message': 'Tento termín je už obsadený.'}), 409
 
-    # Vloženie novej objednávky
-    cursor.execute(
-        """
-        INSERT INTO objednavky (datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            data['datum'], data['cas'], data['procedura_nazov'], data['procedura_cena'],
-            data['meno_dietata'], data.get('diagnoza', ''), data['meno_rodica'],
-            data['telefon'], data['email'], data.get('zdroj_info', '')
-        )
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    
-    return jsonify({'status': 'success', 'message': 'Objednávka úspešne vytvorená'})
-
-# Admin panel teraz vracia všetky nové dáta
 @app.route('/api/admin/vsetky-objednavky', methods=['GET'])
 def ziskaj_vsetky_objednavky():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info, stav_platby FROM objednavky ORDER BY datum, cas"
+        "SELECT id, datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info, stav_platby FROM objednavky ORDER BY datum DESC, cas"
     )
     columns = [desc[0] for desc in cursor.description]
     objednavky = [dict(zip(columns, row)) for row in cursor.fetchall()]
     cursor.close()
     conn.close()
     return jsonify(objednavky)
-
 
 @app.route('/api/admin/zmazat/<int:objednavka_id>', methods=['POST'])
 def zmaz_objednavku(objednavka_id):

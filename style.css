@@ -1,0 +1,207 @@
+/* style.css */
+
+/* Definovanie našich farieb pre jednoduché použitie */
+:root {
+    --primary-blue: #2158E4;
+    --light-blue: #e9efff;
+    --white: #ffffff;
+    --dark-text: #333333;
+    --light-text: #777777;
+    --border-color: #dddddd;
+    --success-green: #d4edda;
+    --warning-yellow: #fff8cc;
+    --danger-red: #f8d7da;
+}
+
+/* Základné nastavenia pre celú stránku */
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f8f9fa;
+    color: var(--dark-text);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 900px;
+    background-color: var(--white);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+h1, h2 {
+    color: var(--primary-blue);
+    text-align: center;
+}
+
+h1 {
+    margin-bottom: 30px;
+}
+
+h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* Štýly pre kalendár */
+.kalendar-wrapper {
+    margin-bottom: 30px;
+}
+
+.kalendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.kalendar-header h2 {
+    margin: 0;
+}
+
+.nav-btn {
+    background-color: transparent;
+    border: 2px solid var(--primary-blue);
+    color: var(--primary-blue);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+    background-color: var(--primary-blue);
+    color: var(--white);
+    transform: scale(1.1);
+}
+
+.dni-v-tyzdni, .kalendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+
+.dni-v-tyzdni div {
+    text-align: center;
+    font-weight: 600;
+    color: var(--light-text);
+    padding-bottom: 10px;
+}
+
+.kalendar-den {
+    padding: 15px 0;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    min-height: 40px;
+}
+
+.kalendar-den:not(.prazdny):hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(33, 88, 228, 0.15);
+}
+
+.kalendar-den.prazdny {
+    background-color: transparent;
+    border: none;
+    cursor: default;
+}
+
+.kalendar-den.dnes {
+    font-weight: 600;
+    border-color: var(--primary-blue);
+}
+
+/* Farby pre obsadenosť */
+.kalendar-den.volny { background-color: var(--success-green); }
+.kalendar-den.ciastocne { background-color: var(--warning-yellow); }
+.kalendar-den.plny { background-color: var(--danger-red); opacity: 0.7; cursor: not-allowed; }
+
+/* Tooltip (okno pri prejdení myšou) */
+.tooltip {
+    visibility: hidden;
+    opacity: 0;
+    width: 150px;
+    background-color: var(--dark-text);
+    color: var(--white);
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    position: absolute;
+    z-index: 10;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    transition: opacity 0.3s ease;
+    pointer-events: none; /* Dôležité, aby neblokoval kliknutie */
+}
+
+.kalendar-den:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Štýly pre formulár */
+.formular-wrapper {
+    background-color: var(--light-blue);
+    padding: 25px;
+    border-radius: 8px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+input, select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+button[type="submit"] {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    background-color: var(--primary-blue);
+    color: var(--white);
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button[type="submit"]:hover {
+    background-color: #1a46b8;
+}
+
+.sprava {
+    margin-top: 20px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Animácia pre načítanie stránky */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}

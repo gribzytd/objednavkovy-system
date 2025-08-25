@@ -3,182 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Objednávkový systém na cvičenia</title>
-    <style>
-        /* Jednoduché štýly pre vzhľad */
-        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f4f4f4; }
-        h1, h2 { text-align: center; }
-        #kalendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
-        .den { border: 1px solid #ccc; padding: 15px; text-align: center; background-color: white; border-radius: 5px; cursor: pointer; position: relative; }
-        .den:hover { background-color: #e9e9e9; }
-        .den.plny { background-color: #ffcccc; color: #a80000; }
-        .den.ciastocne { background-color: #fff8cc; }
-        .den.volny { background-color: #d4edda; }
-        .tooltip { visibility: hidden; width: 150px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -75px; opacity: 0; transition: opacity 0.3s; font-size: 12px; }
-        .den:hover .tooltip { visibility: visible; opacity: 1; }
-        #objednavkovy-formular { margin-top: 30px; padding: 20px; border: 1px solid #ccc; background-color: white; border-radius: 5px; }
-        input, select { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-        button { background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
-        button:hover { background-color: #218838; }
-        #sprava { margin-top: 20px; text-align: center; font-weight: bold; }
-    </style>
+    <title>Objednávkový systém</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <h1>Objednajte sa na cvičenie</h1>
+    <div class="container">
+        <h1>Objednajte sa na cvičenie</h1>
 
-    <h2>Kalendár voľných termínov (September 2025)</h2>
-    <p style="text-align: center;">Ukáž myšou na deň pre zobrazenie detailov.</p>
-    <div id="kalendar">
+        <div class="kalendar-wrapper">
+            <div class="kalendar-header">
+                <button id="predchadzajuci-mesiac" class="nav-btn">&lt;</button>
+                <h2 id="nazov-mesiaca"></h2>
+                <button id="nasledujuci-mesiac" class="nav-btn">&gt;</button>
+            </div>
+            <div class="dni-v-tyzdni">
+                <div>Po</div>
+                <div>Ut</div>
+                <div>St</div>
+                <div>Št</div>
+                <div>Pi</div>
+                <div>So</div>
+                <div>Ne</div>
+            </div>
+            <div id="kalendar-grid" class="kalendar-grid">
+                </div>
         </div>
 
-    <div id="objednavkovy-formular">
-        <h2>Vyberte si termín</h2>
-        <form id="formular">
-            <label for="meno">Vaše meno:</label>
-            <input type="text" id="meno" name="meno" required>
+        <div id="objednavkovy-formular" class="formular-wrapper">
+            <h2>Vyberte si termín</h2>
+            <form id="formular">
+                <label for="meno">Vaše meno:</label>
+                <input type="text" id="meno" name="meno" required>
 
-            <label for="datum">Dátum:</label>
-            <input type="date" id="datum" name="datum" required>
+                <label for="datum">Dátum:</label>
+                <input type="date" id="datum" name="datum" required>
 
-            <label for="cas">Čas:</label>
-            <select id="cas" name="cas" required>
-                <option value="08:00">08:00</option>
-                <option value="09:00">09:00</option>
-                <option value="10:00">10:00</option>
-                <option value="16:00">16:00</option>
-                <option value="17:00">17:00</option>
-            </select>
+                <label for="cas">Čas:</label>
+                <select id="cas" name="cas" required>
+                    <option value="08:00">08:00</option>
+                    <option value="09:00">09:00</option>
+                    <option value="10:00">10:00</option>
+                    <option value="16:00">16:00</option>
+                    <option value="17:00">17:00</option>
+                </select>
 
-            <button type="submit">Odoslať objednávku</button>
-        </form>
-        <div id="sprava"></div>
+                <button type="submit">Odoslať objednávku</button>
+            </form>
+            <div id="sprava" class="sprava"></div>
+        </div>
     </div>
 
-    <script>
-        // --- Globálne premenné a nastavenia ---
-        // Adresa, na ktorej beží náš Python/Flask server.
-        const API_URL = 'http://127.0.0.1:5000';
-        
-        // Elementy na stránke, s ktorými budeme pracovať
-        const kalendarDiv = document.getElementById('kalendar');
-        const formular = document.getElementById('formular');
-        const spravaDiv = document.getElementById('sprava');
-        
-        // --- Funkcie ---
-
-        /**
-         * Načíta všetky objednávky zo servera a prekreslí kalendár.
-         */
-        async function nacitajAprekresliKalendar() {
-            try {
-                const response = await fetch(`${API_URL}/api/terminy`);
-                const objednavky = await response.json();
-                
-                // Vyčistíme starý kalendár
-                kalendarDiv.innerHTML = '';
-                
-                // Jednoduché generovanie dní pre September (30 dní)
-                for (let i = 1; i <= 30; i++) {
-                    const denDiv = document.createElement('div');
-                    denDiv.classList.add('den');
-                    
-                    const datumString = `2025-09-${i.toString().padStart(2, '0')}`;
-                    denDiv.dataset.datum = datumString; // Uložíme dátum priamo na element
-                    
-                    // Zistíme, koľko objednávok je na tento deň
-                    const objednavkyNaDen = objednavky.filter(o => o.datum === datumString);
-                    const pocetObsadenych = objednavkyNaDen.length;
-
-                    // Pridáme číslo dňa
-                    denDiv.innerHTML = `<strong>${i}</strong>`;
-                    
-                    // Tooltip (text, ktorý sa zobrazí pri prejdení myšou)
-                    const tooltip = document.createElement('span');
-                    tooltip.classList.add('tooltip');
-                    let tooltipText = 'Voľné časy:<br>';
-                    const vsetkyCasy = ["08:00", "09:00", "10:00", "16:00", "17:00"];
-                    const obsadeneCasy = objednavkyNaDen.map(o => o.cas);
-                    
-                    vsetkyCasy.forEach(cas => {
-                        if (obsadeneCasy.includes(cas)) {
-                            tooltipText += `<span style="text-decoration: line-through;">${cas}</span><br>`;
-                        } else {
-                            tooltipText += `${cas}<br>`;
-                        }
-                    });
-                    tooltip.innerHTML = tooltipText;
-                    denDiv.appendChild(tooltip);
-
-                    // Nastavíme farbu podľa obsadenosti (5 je max. počet termínov)
-                    if (pocetObsadenych === 0) {
-                        denDiv.classList.add('volny');
-                    } else if (pocetObsadenych >= 5) {
-                        denDiv.classList.add('plny');
-                    } else {
-                        denDiv.classList.add('ciastocne');
-                    }
-
-                    // Po kliknutí na deň sa dátum automaticky vyplní vo formulári
-                    denDiv.addEventListener('click', () => {
-                        document.getElementById('datum').value = datumString;
-                    });
-
-                    kalendarDiv.appendChild(denDiv);
-                }
-
-            } catch (error) {
-                console.error('Chyba pri načítavaní dát:', error);
-                kalendarDiv.innerHTML = '<p>Nepodarilo sa načítať dáta zo servera.</p>';
-            }
-        }
-
-        /**
-         * Odošle dáta z formulára na server a vytvorí novú objednávku.
-         */
-        formular.addEventListener('submit', async function(event) {
-            event.preventDefault(); // Zabráníme klasickému odoslaniu formulára
-            
-            const data = {
-                meno: document.getElementById('meno').value,
-                datum: document.getElementById('datum').value,
-                cas: document.getElementById('cas').value
-            };
-            
-            spravaDiv.textContent = 'Odosielam...';
-
-            try {
-                const response = await fetch(`${API_URL}/api/objednat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                });
-                
-                const vysledok = await response.json();
-                
-                if (vysledok.status === 'success') {
-                    spravaDiv.textContent = 'Ďakujeme! Vaša objednávka bola prijatá.';
-                    spravaDiv.style.color = 'green';
-                    formular.reset(); // Vyčistíme formulár
-                    nacitajAprekresliKalendar(); // Obnovíme kalendár, aby sa zobrazila nová objednávka
-                } else {
-                    spravaDiv.textContent = `Chyba: ${vysledok.message}`;
-                    spravaDiv.style.color = 'red';
-                }
-
-            } catch (error) {
-                console.error('Chyba pri odosielaní objednávky:', error);
-                spravaDiv.textContent = 'Nastala chyba pri komunikácii so serverom.';
-                spravaDiv.style.color = 'red';
-            }
-        });
-
-        // --- Prvotné načítanie ---
-        // Keď sa stránka načíta, hneď zavoláme funkciu na načítanie kalendára.
-        document.addEventListener('DOMContentLoaded', nacitajAprekresliKalendar);
-    </script>
-
+    <script src="script.js"></script>
 </body>
 </html>
