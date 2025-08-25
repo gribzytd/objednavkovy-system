@@ -1,120 +1,119 @@
-# app.py (verzia pre Render s PostgreSQL)
+# app.py (verzia 2.0 s rozšíreným formulárom)
 
 import os
-import sqlite3
 import psycopg2
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# --- Inicializácia aplikácie ---
 app = Flask(__name__)
 CORS(app)
 
-# --- Práca s databázou ---
 def get_db_connection():
-    """Vytvorí pripojenie k databáze."""
-    # Render nám poskytne URL k databáze v "environment variable"
     db_url = os.environ.get('DATABASE_URL')
-    if db_url:
-        # Sme na serveri, pripájame sa na PostgreSQL
-        conn = psycopg2.connect(db_url)
-    else:
-        # Sme lokálne, používame SQLite pre jednoduché testovanie
-        conn = sqlite3.connect('terminy.db')
-        conn.row_factory = sqlite3.Row # Umožní nám pristupovať k stĺpcom podľa mena
+    if not db_url:
+        raise ValueError("DATABASE_URL nie je nastavená!")
+    conn = psycopg2.connect(db_url)
     return conn
 
-def inicializuj_db():
-    """
-    Inicializuje databázu. Pre PostgreSQL to znamená vytvorenie tabuľky,
-    pre SQLite vytvorí aj súbor.
-    """
+# !! DÔLEŽITÉ !! - Funkcia na úpravu databázy
+# Túto funkciu budeme musieť jednorazovo spustiť, aby sme pridali nové stĺpce
+def uprav_db_pre_v2():
     conn = get_db_connection()
-    # Rozdielne kurzory pre rôzne databázy
-    if isinstance(conn, psycopg2.extensions.connection):
-        cursor = conn.cursor()
-        # Pre PostgreSQL použijeme SERIAL pre automatické inkrementovanie ID
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS objednavky (
-                id SERIAL PRIMARY KEY,
-                datum TEXT NOT NULL,
-                cas TEXT NOT NULL,
-                meno_klienta TEXT NOT NULL
-            )
-        ''')
-    else: # Sme v SQLite
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS objednavky (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                datum TEXT NOT NULL,
-                cas TEXT NOT NULL,
-                meno_klienta TEXT NOT NULL
-            )
-        ''')
+    cursor = conn.cursor()
+    # Pridáme nové stĺpce do tabuľky 'objednavky'. Ak už existujú, príkaz neurobí nič.
+    # Používame IF NOT EXISTS pre bezpečnosť
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_nazov TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS procedura_cena NUMERIC;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_dietata TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS diagnoza TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS meno_rodica TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS telefon TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS email TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS zdroj_info TEXT;')
+    cursor.execute('ALTER TABLE objednavky ADD COLUMN IF NOT EXISTS stav_platby TEXT DEFAULT \'čaká na platbu\';')
     
+    # Premenujeme starý stĺpec pre lepšiu prehľadnosť
+    # cursor.execute('ALTER TABLE objednavky RENAME COLUMN meno_klienta TO stary_udaj_meno;')
+
     conn.commit()
     cursor.close()
     conn.close()
-    print("Databáza bola úspešne inicializovaná.")
+    print("Databáza bola úspešne upravená pre v2.0.")
 
 
-# --- API Endpoints (zostávajú takmer rovnaké) ---
+# --- API Endpoints ---
 
 @app.route('/api/terminy', methods=['GET'])
 def ziskaj_terminy():
     conn = get_db_connection()
-    if isinstance(conn, psycopg2.extensions.connection):
-        cursor = conn.cursor()
-    else:
-        cursor = conn.cursor()
-
-    cursor.execute("SELECT datum, cas, meno_klienta FROM objednavky")
+    cursor = conn.cursor()
+    # Berieme len dátum a čas, aby sme vedeli určiť obsadenosť
+    cursor.execute("SELECT datum, cas FROM objednavky")
     vsetky_objednavky = cursor.fetchall()
-    
     cursor.close()
     conn.close()
     
-    zoznam_objednavok = [{'datum': o[0], 'cas': o[1], 'meno': o[2]} for o in vsetky_objednavky]
+    zoznam_objednavok = [{'datum': o[0], 'cas': o[1]} for o in vsetky_objednavky]
     return jsonify(zoznam_objednavok)
 
 @app.route('/api/objednat', methods=['POST'])
 def vytvor_objednavku():
     data = request.get_json()
-    datum, cas, meno = data.get('datum'), data.get('cas'), data.get('meno')
     
-    if not all([datum, cas, meno]):
-        return jsonify({'status': 'error', 'message': 'Chýbajúce dáta'}), 400
-        
+    # Kontrola, či máme všetky potrebné dáta z nového formulára
+    required_fields = ['datum', 'cas', 'procedura_nazov', 'procedura_cena', 'meno_dietata', 'meno_rodica', 'telefon', 'email']
+    if not all(field in data for field in required_fields):
+        return jsonify({'status': 'error', 'message': 'Chýbajú povinné polia'}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO objednavky (datum, cas, meno_klienta) VALUES (%s, %s, %s)", (datum, cas, meno))
+    
+    # Kontrola duplicitnej objednávky
+    cursor.execute("SELECT id FROM objednavky WHERE datum = %s AND cas = %s", (data['datum'], data['cas']))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        return jsonify({'status': 'error', 'message': 'Tento termín je už obsadený.'}), 409
+
+    # Vloženie novej objednávky
+    cursor.execute(
+        """
+        INSERT INTO objednavky (datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            data['datum'], data['cas'], data['procedura_nazov'], data['procedura_cena'],
+            data['meno_dietata'], data.get('diagnoza', ''), data['meno_rodica'],
+            data['telefon'], data['email'], data.get('zdroj_info', '')
+        )
+    )
     conn.commit()
     cursor.close()
     conn.close()
     
     return jsonify({'status': 'success', 'message': 'Objednávka úspešne vytvorená'})
 
-@app.route('/api/admin/zmazat', methods=['POST'])
-def zmaz_objednavku():
-    data = request.get_json()
-    datum, cas = data.get('datum'), data.get('cas')
-
-    if not all([datum, cas]):
-        return jsonify({'status': 'error', 'message': 'Chýbajúce dáta na zmazanie'}), 400
-
+# Admin panel teraz vracia všetky nové dáta
+@app.route('/api/admin/vsetky-objednavky', methods=['GET'])
+def ziskaj_vsetky_objednavky():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM objednavky WHERE datum = %s AND cas = %s", (datum, cas))
+    cursor.execute(
+        "SELECT id, datum, cas, procedura_nazov, procedura_cena, meno_dietata, diagnoza, meno_rodica, telefon, email, zdroj_info, stav_platby FROM objednavky ORDER BY datum, cas"
+    )
+    columns = [desc[0] for desc in cursor.description]
+    objednavky = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return jsonify(objednavky)
+
+
+@app.route('/api/admin/zmazat/<int:objednavka_id>', methods=['POST'])
+def zmaz_objednavku(objednavka_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM objednavky WHERE id = %s", (objednavka_id,))
     conn.commit()
     cursor.close()
     conn.close()
-
     return jsonify({'status': 'success', 'message': 'Objednávka zmazaná'})
-
-# Táto časť je len pre lokálne testovanie, na Renderi sa nepoužije
-if __name__ == '__main__':
-    # Pred lokálnym spustením sa uistíme, že SQLite databáza je pripravená
-    if not os.environ.get('DATABASE_URL'):
-        inicializuj_db()
-    app.run(debug=True, port=5000)
