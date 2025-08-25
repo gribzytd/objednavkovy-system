@@ -1,4 +1,4 @@
-# app.py (finálna verzia 2.1 s emailami)
+# app.py (finálna verzia 2.1 - OPRAVENÁ)
 
 import os
 import psycopg2
@@ -22,10 +22,12 @@ def get_db_connection():
 
 def odosli_objednavku_emailom(data, subor):
     try:
+        # === TOTO JE OPRAVENÁ ČASŤ ===
+        # Používame mená (kľúče), ktoré sme zadali na Renderi
         EMAIL_HOST = os.environ.get('EMAIL_HOST')
         EMAIL_PORT = int(os.environ.get('EMAIL_PORT'))
         EMAIL_USER = os.environ.get('EMAIL_USER')
-        EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
+        EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD') # Sem nepatrí heslo! Načíta ho z Renderu.
         
         prijemca = EMAIL_USER
 
@@ -98,6 +100,8 @@ def vytvor_objednavku():
     finally:
         cursor.close()
         conn.close()
+
+# --- Ostatné funkcie zostávajú rovnaké ---
 
 @app.route('/api/terminy', methods=['GET'])
 def ziskaj_terminy():
