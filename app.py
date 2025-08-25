@@ -1,8 +1,9 @@
-# app.py (finálna verzia 2.3 - integrácia Resend)
+# app.py (finálna verzia 2.4 - oprava príloh)
 
 import os
 import psycopg2
-import resend # Nový import
+import resend
+import base64 # Nový import pre prácu s prílohou
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -16,7 +17,6 @@ def get_db_connection():
     conn = psycopg2.connect(db_url)
     return conn
 
-# === NOVÁ FUNKCIA NA ODOSIELANIE EMAILOV CEZ RESEND ===
 def odosli_objednavku_emailom(data, subor):
     try:
         resend.api_key = os.environ.get("RESEND_API_KEY")
@@ -24,9 +24,12 @@ def odosli_objednavku_emailom(data, subor):
 
         prilohy = []
         if subor:
+            # === TOTO JE OPRAVENÁ ČASŤ ===
+            # Súbor prečítame a zakódujeme do Base64, aby sme ho bezpečne poslali
+            file_content = base64.b64encode(subor.read()).decode('utf-8')
             prilohy.append({
                 "filename": subor.filename,
-                "content": subor.read()
+                "content": file_content 
             })
 
         html_telo = f"""
@@ -45,7 +48,7 @@ def odosli_objednavku_emailom(data, subor):
         """
         
         params = {
-            "from": "MimaRehab Objednávky <onboarding@resend.dev>", # DÔLEŽITÉ: Na bezplatnom pláne Resend musí byť odosielateľ táto adresa
+            "from": "MimaRehab Objednávky <onboarding@resend.dev>",
             "to": [admin_email],
             "subject": f"Nová objednávka: {data['procedura_nazov']} - {data['meno_dietata']}",
             "html": html_telo,
@@ -60,7 +63,7 @@ def odosli_objednavku_emailom(data, subor):
         print(f"Chyba pri odosielaní emailu cez Resend: {e}")
         return False
 
-# Všetky ostatné funkcie zostávajú rovnaké, len vkladáme novú emailovú funkciu
+# Všetky ostatné funkcie sú už správne a zostávajú rovnaké
 @app.route('/api/objednat', methods=['POST'])
 def vytvor_objednavku():
     data = request.form
@@ -83,7 +86,6 @@ def vytvor_objednavku():
             )
         )
         conn.commit()
-        # Zavoláme našu novú Resend funkciu
         odosli_objednavku_emailom(data, subor)
         return jsonify({'status': 'success', 'message': 'Objednávka úspešne vytvorená'})
     finally:
@@ -112,7 +114,7 @@ def ziskaj_vsetky_objednavky():
     conn.close()
     return jsonify(objednavky)
 
-@app.route('/api/admin/zmazat/<int_objednavka_id>', methods=['POST'])
+@app.route('/api/admin/zmazat/<int:objednavka_id>', methods=['POST'])
 def zmaz_objednavku(objednavka_id):
     conn = get_db_connection()
     cursor = conn.cursor()
